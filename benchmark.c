@@ -91,7 +91,7 @@ wavefront *calc_surfaceR(int sz, double *Zidxs, int znum){
  * @param znum   - amount of Zidx
  */
 wavefront *calc_surfaceRS(int sz, polar *points, double *Zidxs, int znum){
-	if(!Zidxs || !points || znum < 1 || sz < 1) return NULL;
+	if(!Zidxs || !points || znum < 1 || sz < 1) ERRX(_("Bad arguments of calc_surfaceRS:%s"));
 	wavefront *F = MALLOC(wavefront, 1);
 	F->size = sz;
 	F->coordinates = MALLOC(polar, sz);
@@ -119,7 +119,7 @@ polar *calc_BTA_Hpoints(int *sz){
 	pt->r = r[2] / rmax; pt->theta = 24.5 * ray_step + theta0;
 	++pt;
 	pt->r = r[7] / rmax; pt->theta = 29.5 * ray_step + theta0;
-	if(sz) *sz = 256;
+	if(sz) *sz = 258;
 	return pts;
 }
 
@@ -130,6 +130,39 @@ static char *bench_names[] = {
 	N_("Direct gradient decomposition (directGradZdecomposeR)"),
 	N_("LS gradient decomposition (LS_gradZdecomposeR)")
 };
+
+/**
+ * calculate difference of two wavefronts
+ * @param WF1, WF2 (i) - wavefronts
+ * @param sz (i) - size of WF1 and WF2
+ * @param std  (o) - RMS of difference
+ * @param maxd (o) - maximal difference value
+ * @param maxd (o) - maximal relative difference value
+ */
+void WF_diff(double *WF1, double *WF2, int sz, double *std, double *maxd, double *maxdr){
+	int i;
+	double _maxd = 0., _maxdr = 0., sum = 0., sum2 = 0.;
+	for(i = 0; i < sz; ++i){
+		double z = WF1[i];
+		double diff = z - WF2[i];
+		sum += diff;
+		sum2 += diff*diff;
+		diff = fabs(diff);
+		if(_maxd < diff){
+			_maxd = diff;
+			z = fabs(z);
+			if(z > WF_EPSILON){
+				_maxdr = diff / z;
+			//	diff /= z;
+			//	if(_maxdr < diff) _maxdr = diff;
+			}
+		}
+	}
+	sum /= sz; sum2 /= sz;
+	if(std) *std = sqrt(sum2 - sum*sum);
+	if(maxd) *maxd = _maxd;
+	if(maxdr) *maxdr = _maxdr;
+}
 
 /**
  * calculate errors and fill WF_stat fields for single measurement
@@ -143,31 +176,21 @@ static char *bench_names[] = {
 static void fill_stat(WF_benchmark *bench, WF_bench_type type, double *Zidxs, double *Zidxs0, wavefront *WF0, int verbose){
 	double *zdata0 = WF0->zdata;
 	polar *P = WF0->coordinates;
-	size_t i, sz = WF0->size;
+	int sz = WF0->size;
 	WF_stat *stat = &bench->stat[type];
 	int znum = bench->Znum;
 	// test errors by wavefront
 	double *zdata = ZcomposeR(znum, Zidxs, sz, P);
-	double maxd = 0., sum = 0., sum2 = 0.;
-	for(i = 0; i < sz; ++i){
-		double z = zdata0[i];
-		double diff = z - zdata[i];
-		sum += diff;
-		sum2 += diff*diff;
-		if(fabs(z) > WF_EPSILON){
-			diff = fabs(diff / z);
-			if(maxd < diff) maxd = diff;
-		}
-	}
-	stat->max_dWF = maxd;
-	sum /= sz; sum2 /= sz;
-	stat->WF_std = sqrt(sum2 - sum*sum);
+	//for(i = 0; i < znum; ++i) printf("ZC_%d\t%10.3f\t%10.3f\n", i, Zidxs0[i], Zidxs[i]);
+	//for(i = 0; i < sz; ++i) printf("Point_%d\t%10.3f\t%10.3f\n", i, zdata0[i], zdata[i]);
+	double maxdr;
+	WF_diff(zdata0, zdata, sz, &(stat->WF_std), &(stat->max_dWF), &maxdr);
 	stat->ZC_sum = MALLOC(double, znum);
 	stat->ZC_sum2 = MALLOC(double, znum);
 	stat->max_dZC = MALLOC(double, znum);
 	if(verbose){
 		printf("%s\n", bench_names[type]);
-		printf("Wavefront error: STD=%g, |max err|=%.3f%%; Zernike:\n#\t   val0   \t    val   \tdiff%%\n", stat->WF_std, maxd);
+		printf("Wavefront error: STD=%g, |max err| = %.3f, |max err rel|=%.3f%%; Zernike:\n#\t   val0   \t    val   \tdiff%%\n", stat->WF_std, stat->max_dWF, maxdr);
 	}
 	for(int p = 0; p < znum; ++p){
 		double diff = Zidxs0[p] - Zidxs[p];
@@ -202,7 +225,6 @@ static WF_benchmark *benchmark_step(double *Zidxs0, int znum, int verbose){
 	MESG(_("1. Scattered points for BTA hartmannogram"));
 	P = calc_BTA_Hpoints(&sz);
 	WF = calc_surfaceRS(sz, P, Zidxs0, znum);
-	FREE(P);
 	zdata = WF->zdata;
 	// ZdecomposeR
 	Zidxs = ZdecomposeR(N, sz, WF->coordinates, zdata, &Zsz, NULL);
@@ -216,12 +238,23 @@ static WF_benchmark *benchmark_step(double *Zidxs0, int znum, int verbose){
 	Zidxs = QR_decompose(N, sz, WF->coordinates, zdata, &Zsz, NULL);
 	fill_stat(bench, Scatter_QR, Zidxs, Zidxs0, WF, verbose);
 	FREE(Zidxs);
-	// directGradZdecomposeR
+	free_wavefront(&WF);
 	Zidxs0[0] = 0.; // decomposition by gradients cannot know anything about zero coefficient
+	WF = calc_surfaceRS(sz, P, Zidxs0, znum); // recalculate new wavefront
+	// directGradZdecomposeR
 	point *grads = directGradZcomposeR(znum, Zidxs0, sz, WF->coordinates);
 	Zidxs = directGradZdecomposeR(N, sz, WF->coordinates, grads, &Zsz, NULL);
 	fill_stat(bench, Scatter_grad, Zidxs, Zidxs0, WF, verbose);
 	FREE(Zidxs);
+	// LS_gradZdecomposeR
+	Zidxs = LS_gradZdecomposeR(N, sz, WF->coordinates, grads, &Zsz, NULL);
+	fill_stat(bench, Scatter_LSgrad, Zidxs, Zidxs0, WF, verbose);
+	FREE(Zidxs);
+	// gradZdecomposeR
+	Zidxs = gradZdecomposeR(N, sz, WF->coordinates, grads, &Zsz, NULL);
+	fill_stat(bench, Scatter_Zhao, Zidxs, Zidxs0, WF, verbose);
+	FREE(grads);
+	FREE(P);
 	free_wavefront(&WF);
 	/*WF = calc_surface(G.imagesize, Zidxs0, znum);
 	P = WF->coordinates;

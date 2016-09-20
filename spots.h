@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include "zernike.h"
 #include "simple_list.h"
+#include "benchmark.h"
 
 extern double pixsize;
 extern double distance;
@@ -90,6 +91,8 @@ void getQ(mirror *mir);
 double calc_Hartmann_constant(mirror *mir);
 spot_diagram *calc_spot_diagram(mirror *mir, double z);
 void calc_gradients(mirror *mir, spot_diagram *foc_spots);
+
+wavefront *read_wavefront(char *fname, double *scale);
 
 /*
 size_t get_gradients(hartmann *H[], polar **coords, point **grads, double *scale);

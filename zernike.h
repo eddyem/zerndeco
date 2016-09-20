@@ -32,6 +32,8 @@
 #define MIR_R       (3025.)
 // Distance from mirror to hartmann mask
 #define HARTMANN_Z  (20017.)
+// reference wavelength (meters): 650nm
+#define WAVELEN     (6.5e-7)
 
 /*************** Data structures & typedefs ***************/
 // point coordinates

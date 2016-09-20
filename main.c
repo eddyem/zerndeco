@@ -47,7 +47,33 @@ int main(int argc, char **argv){
 	point *grads = NULL;
 	initial_setup();
 	parse_args(argc, argv);
-	if(G.zerngen){ // user give his zernike coefficients
+	if(G.wf_fname){ // just restore wavefront
+		double Rmax;
+		wavefront *wf = read_wavefront(G.wf_fname, &Rmax);
+		printf("Rmax: %g meters\n", Rmax);
+		int i, N, Zsz, lastidx;
+		convert_Zidx(G.bench_maxP, &N, &Zsz);
+		double *Zidxs = LS_decompose(N, wf->size, wf->coordinates, wf->zdata, &Zsz, &lastidx);
+		printf("LS_decompose. %d non-zero coefficients:\nIDX\tcoefficient\n", lastidx);
+		for(i = 0; i < lastidx; ++i) printf("%3d\t%g\n", i, Zidxs[i]);
+		double *zdata = ZcomposeR(lastidx, Zidxs, wf->size, wf->coordinates);
+		double std, maxd, maxdr;
+		WF_diff(wf->zdata, zdata, wf->size, &std, &maxd, &maxdr);
+		printf("Difference: std=%g, maxD=%g (%g%%)\n", std, maxd, maxdr*100.);
+		FREE(Zidxs);
+		Zidxs = ZdecomposeR(N, wf->size, wf->coordinates, wf->zdata, &Zsz, &lastidx);
+		printf("ZdecomposeR. %d non-zero coefficients:\nIDX\tcoefficient\n", lastidx);
+		for(i = 0; i < lastidx; ++i) printf("%3d\t%g\n", i, Zidxs[i]);
+		FREE(zdata);
+		zdata = ZcomposeR(lastidx, Zidxs, wf->size, wf->coordinates);
+		WF_diff(wf->zdata, zdata, wf->size, &std, &maxd, &maxdr);
+		printf("Difference: std=%g, maxD=%g (%g%%)\n", std, maxd, maxdr*100.);
+		FREE(Zidxs);
+		FREE(zdata);
+		free_wavefront(&wf);
+		return 0;
+	}
+	if(G.zerngen){ // user give Zernike coefficients
 		if(G.rest_pars_num < 1) ERRX(_("You should give at least one Zernike coefficient"));
 		Zidxs = MALLOC(double, G.rest_pars_num);
 		for(i = 0; i < G.rest_pars_num; ++i){

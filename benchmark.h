@@ -26,8 +26,9 @@
 #include "zernike.h"
 #include "usefull_macros.h"
 
+// in lambdas
 #ifndef WF_EPSILON
-#define WF_EPSILON (1e-12)
+#define WF_EPSILON (1e-3)
 #endif
 
 typedef struct{
@@ -51,6 +52,7 @@ typedef enum{
 	,Scatter_QR              // QR_decompose
 	,Scatter_grad            // directGradZdecomposeR
 	,Scatter_LSgrad          // LS_gradZdecomposeR
+	,Scatter_Zhao            // gradZdecomposeR
 	,WF_bench_size
 } WF_bench_type;
 
@@ -68,4 +70,6 @@ wavefront *calc_surfaceRS(int sz, polar *points, double *Zidxs, int znum);
 polar *calc_BTA_Hpoints(int *sz);
 void free_bench(WF_benchmark **bench);
 void do_benchmark(double *Zidxs0, int znum0);
+void WF_diff(double *WF1, double *WF2, int sz, double *std, double *maxd, double *maxdr);
+
 #endif // __BENCHMARK_H__

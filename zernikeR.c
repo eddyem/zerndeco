@@ -388,7 +388,6 @@ double *QR_decompose(int Nmax, int Sz, polar *P, double *heights, int *Zsz, int 
 	return Zidxs_corr;
 }
 
-
 /**
  * Components of Zj gradient without constant factor
  * @param n,m      - orders of polynomial
@@ -491,7 +490,7 @@ point *zerngradR(int p, int Sz, polar *P, double *norm){
 }
 
 /**
- * Decomposition of image with normals to wavefront by Zhao's polynomials
+ * Decomposition of image with normals to wavefront by Zernike polynomials
  * by least squares method through LU-decomposition
  * @param Nmax (i)   - maximum power of Zernike polinomial for decomposition
  * @param Sz, P(i)   - size (Sz) of points array (P)

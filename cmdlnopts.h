@@ -29,6 +29,7 @@
 typedef struct{
 	char **rest_pars;    // names of input files or zernike coefficients
 	int rest_pars_num;   // amount of files' names / coefficients
+	char *wf_fname;      // filename with wavefront data to restore
 	char *gradname;      // file with pre-computed gradients
 	double pixsize;      // CCD pixel size
 	int zerngen;         // generate FITS file with Zernike surface

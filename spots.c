@@ -441,6 +441,56 @@ void calc_gradients(mirror *mir, spot_diagram *foc_spots){
 	}
 }
 
+/**
+ * Readout of wavefront file calculated somewhere outside
+ *
+ * @param fname  (i) - input file name
+ * @param scale  (o) - scale on mirror (Rmax)
+ * @return - wavefront read
+ *
+ * Wavefront measured in lambdas (WAVELEN) and coordinates are normalized by `scale` (Rmax)
+ * 1 lambda on wavefront is lambda/2 on mirror, so we need to multiply data by 2
+ */
+wavefront *read_wavefront(char *fname, double *scale){
+	if(!fname) return NULL;
+	wavefront *F = MALLOC(wavefront, 1);
+	mmapbuf *M = NULL;
+	double Rmax = 0.;
+	int sz, max_sz = 512;
+	polar *coordinates = MALLOC(polar, max_sz);
+	double *zdata = MALLOC(double, max_sz);
+	M = My_mmap(fname);
+	char *pos = M->data, *epos = pos + M->len;
+	for(sz = -1; pos && pos < epos; pos = strchr(pos+1, '\n')){
+		double x, y, z, R;
+		if(3 != sscanf(pos, "%lf %lf %lf", &x, &y, &z))
+			continue;
+		if(++sz >= max_sz){
+			max_sz += 512;
+			double *dptr = realloc(F->zdata, max_sz * sizeof(double));
+			if(dptr) zdata = dptr;
+			else ERR("realloc");
+			polar *ptr = realloc(F->coordinates, max_sz * sizeof(polar));
+			if(ptr) coordinates = ptr;
+			else ERR("realloc");
+		}
+		R = sqrt(x*x + y*y);
+		if(R > Rmax) Rmax = R;
+		coordinates[sz].r = R;
+		coordinates[sz].theta = atan2(y, x);
+		//DBG("%3d. x:%g, y:%g, z:%g, R:%g, theta: %g\n", sz, x,y,z, R, coordinates[sz].theta);
+		zdata[sz] = 2.*z/WAVELEN;
+	}
+	DBG("Found %d points", sz+1);
+	F->size = sz + 1;
+	F->zdata = zdata;
+	F->coordinates = coordinates;
+	for(; sz > -1; --sz) F->coordinates[sz].r /= Rmax;
+	if(scale) *scale = Rmax;
+	My_munmap(M);
+	return F;
+}
+
 #if 0
 /**
  *
